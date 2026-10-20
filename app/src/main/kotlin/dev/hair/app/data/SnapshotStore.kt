@@ -5,8 +5,6 @@ import kotlinx.serialization.SerializationException
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import java.io.File
-import java.nio.file.Files
-import java.nio.file.StandardCopyOption
 
 /** 一次完整拉取的结果，是界面和后台同步共用的唯一缓存单元。 */
 @Serializable
@@ -32,12 +30,7 @@ class SnapshotStore(private val file: File) {
         }
     }
 
-    /** 先写临时文件再原子替换，避免进程中途被杀留下半个文件。 */
-    fun save(snapshot: Snapshot) {
-        val tmp = File(file.path + ".tmp")
-        tmp.writeText(HealthJson.encodeToString(snapshot))
-        Files.move(tmp.toPath(), file.toPath(), StandardCopyOption.ATOMIC_MOVE)
-    }
+    fun save(snapshot: Snapshot) = file.writeTextAtomically(HealthJson.encodeToString(snapshot))
 
     fun clear() {
         file.delete()

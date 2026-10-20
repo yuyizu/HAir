@@ -178,3 +178,6 @@ fun Segmented(options: List<String>, selected: Int, onSelect: (Int) -> Unit, mod
 }
 
 fun formatMinutes(minutes: Long): String = "${minutes / 60} 小时 ${minutes % 60} 分"
+
+/** 目标整小时时省掉“0 分”，否则同 [formatMinutes]。 */
+fun formatSleepGoal(minutes: Long): String = if (minutes % 60 == 0L) "${minutes / 60} 小时" else formatMinutes(minutes)

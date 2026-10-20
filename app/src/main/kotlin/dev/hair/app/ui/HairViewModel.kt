@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.hair.app.HairApp
 import dev.hair.app.data.DetailRange
+import dev.hair.app.data.Goals
 import dev.hair.app.data.HealthApiException
 import dev.hair.app.data.Metric
 import dev.hair.app.data.Series
@@ -47,6 +48,10 @@ class HairViewModel(app: Application) : AndroidViewModel(app) {
     private val _state = MutableStateFlow<UiState>(if (auth.isSignedIn) UiState.Loading else UiState.SignedOut)
     val state: StateFlow<UiState> = _state.asStateFlow()
 
+    private val goalStore = hair.goalStore
+    private val _goals = MutableStateFlow(goalStore.load())
+    val goals: StateFlow<Goals> = _goals.asStateFlow()
+
     init {
         if (auth.isSignedIn) refresh()
     }
@@ -77,6 +82,12 @@ class HairViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun refresh() = load {}
+
+    /** 目标文件很小，直接在主线程同步落盘，保证连点时写入顺序与界面一致。 */
+    fun setGoals(goals: Goals) {
+        goalStore.save(goals)
+        _goals.value = goals
+    }
 
     /** 详情页的时间序列不入缓存，每次现取；由调用方的协程负责取消。 */
     suspend fun loadSeries(metric: Metric, range: DetailRange): SeriesResult = try {

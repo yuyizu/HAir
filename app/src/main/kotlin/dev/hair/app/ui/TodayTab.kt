@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import dev.hair.app.data.Goals
 import dev.hair.app.data.Overview
 import dev.hair.app.ui.theme.linkColor
 import kotlinx.coroutines.delay
@@ -31,10 +32,6 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-
-// 环的默认目标，暂不可配置
-private const val STEP_GOAL = 8_000L
-private const val SLEEP_GOAL_MIN = 480L
 
 private val DATE_FORMAT = DateTimeFormatter.ofPattern("M月d日 EEEE", Locale.CHINA)
 private val SHORT_DATE = DateTimeFormatter.ofPattern("M月d日", Locale.CHINA)
@@ -47,6 +44,7 @@ private val UPDATED_FORMAT = DateTimeFormatter.ofPattern("M月d日 HH:mm", Local
 @Composable
 fun TodayTab(
     state: UiState.Ready,
+    goals: Goals,
     onRefresh: () -> Unit,
     animateIn: Boolean,
     onIntroDone: () -> Unit,
@@ -70,7 +68,7 @@ fun TodayTab(
     ) {
         item { Entrance(0, animateIn) { SummaryHeader(state, onRefresh) } }
         item { Entrance(1, animateIn) { SectionTitle("收藏") } }
-        item { Entrance(2, animateIn) { ActivityCard(o, steps, animateIn, onOpenDetail) } }
+        item { Entrance(2, animateIn) { ActivityCard(o, goals, steps, animateIn, onOpenDetail) } }
         item {
             Entrance(3, animateIn) {
                 SummaryCard("步数", colors.primary, time = "今天", onClick = onOpenDetail) { ValueText(steps?.let { "%,d".format(it) }, "步") }
@@ -139,14 +137,14 @@ private fun SummaryHeader(state: UiState.Ready, onRefresh: () -> Unit) {
 }
 
 @Composable
-private fun ActivityCard(o: Overview, steps: Long?, animateIn: Boolean, onClick: () -> Unit) {
+private fun ActivityCard(o: Overview, goals: Goals, steps: Long?, animateIn: Boolean, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val sleep = o.lastNight?.asleepMin
     SummaryCard("活动", colors.primary, time = "今天", onClick = onClick) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             ActivityRings(
-                outer = ringProgress(o.stepsToday, STEP_GOAL),
-                inner = ringProgress(sleep, SLEEP_GOAL_MIN),
+                outer = ringProgress(o.stepsToday, goals.steps),
+                inner = ringProgress(sleep, goals.sleepMin),
                 outerColor = colors.primary,
                 innerColor = colors.secondary,
                 trackColor = colors.surfaceVariant,
@@ -155,8 +153,8 @@ private fun ActivityCard(o: Overview, steps: Long?, animateIn: Boolean, onClick:
             ) {}
             Spacer(Modifier.width(20.dp))
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                RingLegend("步数", colors.primary, steps?.let { "%,d / %,d".format(it, STEP_GOAL) })
-                RingLegend("睡眠", colors.secondary, sleep?.let { "${formatMinutes(it)} / ${SLEEP_GOAL_MIN / 60} 小时" })
+                RingLegend("步数", colors.primary, steps?.let { "%,d / %,d".format(it, goals.steps) })
+                RingLegend("睡眠", colors.secondary, sleep?.let { "${formatMinutes(it)} / ${formatSleepGoal(goals.sleepMin)}" })
             }
         }
     }
