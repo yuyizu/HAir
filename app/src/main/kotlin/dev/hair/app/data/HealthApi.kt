@@ -1,5 +1,7 @@
 package dev.hair.app.data
 
+import android.util.Log
+import dev.hair.app.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
@@ -32,6 +34,7 @@ class HealthApi(
             .addQueryParameter("pageSize", pageSize.toString())
             .build()
         val body = execute(Request.Builder().url(url))
+        if (BuildConfig.DEBUG) Log.d(TAG, "$dataType [$filter] -> $body")
         return HealthJson.decodeFromString<ListResponse>(body).dataPoints
     }
 
@@ -58,6 +61,7 @@ class HealthApi(
     private fun LocalDate.toCivil() = CivilDateTime(Date(year, monthValue, dayOfMonth), TimeOfDay())
 
     private companion object {
+        const val TAG = "HealthApi"
         const val BASE = "https://health.googleapis.com/v4"
         val JSON = "application/json".toMediaType()
     }
