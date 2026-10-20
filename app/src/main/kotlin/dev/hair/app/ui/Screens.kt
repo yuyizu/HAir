@@ -29,7 +29,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.hair.app.data.CardioLevel
 
-private val TABS = listOf("今日", "睡眠", "我的")
+private val TABS = listOf("摘要", "睡眠", "我的")
 
 @Composable
 fun HairScreen(state: UiState, onSignIn: () -> Unit, onRefresh: () -> Unit, onSignOut: () -> Unit) {

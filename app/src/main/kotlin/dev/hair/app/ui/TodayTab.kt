@@ -1,19 +1,16 @@
 package dev.hair.app.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -24,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import dev.hair.app.data.Overview
+import dev.hair.app.ui.theme.linkColor
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -35,35 +33,59 @@ private const val STEP_GOAL = 8_000L
 private const val SLEEP_GOAL_MIN = 480L
 
 private val DATE_FORMAT = DateTimeFormatter.ofPattern("M月d日 EEEE", Locale.CHINA)
+private val SHORT_DATE = DateTimeFormatter.ofPattern("M月d日", Locale.CHINA)
 private val UPDATED_FORMAT = DateTimeFormatter.ofPattern("M月d日 HH:mm", Locale.CHINA)
 
 @Composable
 fun TodayTab(state: UiState.Ready, onRefresh: () -> Unit) {
     val o = state.snapshot.overview
+    val colors = MaterialTheme.colorScheme
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item { TodayHeader(state, onRefresh) }
-        item { ActivityHero(o) }
+        item { SummaryHeader(state, onRefresh) }
+        item { SectionTitle("收藏") }
+        item { ActivityCard(o) }
         item {
-            TileRow(
-                { MetricTile("静息心率", o.restingHr?.toString(), "bpm", null, it) },
-                { MetricTile("最近心率", o.latestHr?.toString(), "bpm", o.latestHr?.let { "6 小时内" }, it) },
-            )
+            SummaryCard("步数", colors.primary, time = "今天") {
+                ValueText(o.stepsToday?.let { "%,d".format(it) }, "步")
+            }
         }
         item {
-            TileRow(
-                { MetricTile("HRV", o.hrvMs?.let { "%.0f".format(it) }, "ms", null, it) },
-                { MetricTile("心肺适能", o.cardioFitness?.level?.let(::cardioLevelLabel), null, o.cardioFitness?.let { "VO₂max %.1f".format(it.vo2Max) }, it) },
-            )
+            SummaryCard("睡眠", colors.secondary, time = o.lastNight?.date?.let(SHORT_DATE::format)) {
+                ValueText(o.lastNight?.asleepMin?.let(::formatMinutes))
+            }
+        }
+        item {
+            SummaryCard("静息心率", colors.tertiary) { ValueText(o.restingHr?.toString(), "bpm") }
+        }
+        item {
+            SummaryCard("心率", colors.tertiary, time = o.latestHr?.let { "6 小时内" }) {
+                ValueText(o.latestHr?.toString(), "bpm")
+            }
+        }
+        item {
+            SummaryCard("心率变异性", colors.tertiary) { ValueText(o.hrvMs?.let { "%.0f".format(it) }, "ms") }
+        }
+        item {
+            SummaryCard("心肺适能", colors.tertiary, time = o.cardioFitness?.date?.let(SHORT_DATE::format)) {
+                ValueText(o.cardioFitness?.level?.let(::cardioLevelLabel))
+                o.cardioFitness?.let {
+                    Text(
+                        "VO₂max %.1f ml/kg/min".format(it.vo2Max),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.onSurfaceVariant,
+                    )
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun TodayHeader(state: UiState.Ready, onRefresh: () -> Unit) {
+private fun SummaryHeader(state: UiState.Ready, onRefresh: () -> Unit) {
     val updatedAt = UPDATED_FORMAT.format(Instant.ofEpochMilli(state.snapshot.fetchedAtMillis).atZone(ZoneId.systemDefault()))
     val (text, color) = when {
         state.refreshing -> "正在更新…（当前是 $updatedAt 的数据）" to MaterialTheme.colorScheme.onSurfaceVariant
@@ -72,19 +94,20 @@ private fun TodayHeader(state: UiState.Ready, onRefresh: () -> Unit) {
     }
     Row(verticalAlignment = Alignment.Top) {
         Column(Modifier.weight(1f)) {
-            Text(DATE_FORMAT.format(LocalDate.now()), style = MaterialTheme.typography.headlineSmall)
+            Text(DATE_FORMAT.format(LocalDate.now()), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("摘要", style = MaterialTheme.typography.headlineLarge)
             Text(text, style = MaterialTheme.typography.bodySmall, color = color, modifier = Modifier.padding(top = 2.dp))
         }
-        TextButton(onClick = onRefresh, enabled = !state.refreshing) { Text("刷新") }
+        TextButton(onClick = onRefresh, enabled = !state.refreshing) { Text("刷新", color = linkColor()) }
     }
 }
 
 @Composable
-private fun ActivityHero(o: Overview) {
+private fun ActivityCard(o: Overview) {
     val colors = MaterialTheme.colorScheme
     val steps = o.stepsToday
     val sleep = o.lastNight?.asleepMin
-    HairCard {
+    SummaryCard("活动", colors.primary, time = "今天") {
         Row(verticalAlignment = Alignment.CenterVertically) {
             ActivityRings(
                 outer = ringProgress(steps, STEP_GOAL),
@@ -92,12 +115,10 @@ private fun ActivityHero(o: Overview) {
                 outerColor = colors.primary,
                 innerColor = colors.secondary,
                 trackColor = colors.surfaceVariant,
-                modifier = Modifier.size(132.dp),
-            ) {
-                Text(steps?.let { "%,d".format(it) } ?: "—", style = MaterialTheme.typography.headlineSmall)
-            }
+                modifier = Modifier.size(104.dp),
+            ) {}
             Spacer(Modifier.width(20.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 RingLegend("步数", colors.primary, steps?.let { "%,d / %,d".format(it, STEP_GOAL) })
                 RingLegend("睡眠", colors.secondary, sleep?.let { "${formatMinutes(it)} / ${SLEEP_GOAL_MIN / 60} 小时" })
             }
@@ -111,21 +132,12 @@ private fun RingLegend(label: String, color: Color, value: String?) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Spacer(Modifier.size(8.dp).background(color, CircleShape))
             Spacer(Modifier.width(6.dp))
-            Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(label, style = MaterialTheme.typography.labelLarge, color = color)
         }
         Text(
             value ?: "暂无数据",
             style = MaterialTheme.typography.titleMedium,
             color = if (value == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
         )
-    }
-}
-
-/** 两个等宽等高的指标卡并排。 */
-@Composable
-private fun TileRow(left: @Composable (Modifier) -> Unit, right: @Composable (Modifier) -> Unit) {
-    Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        left(Modifier.weight(1f).fillMaxHeight())
-        right(Modifier.weight(1f).fillMaxHeight())
     }
 }
