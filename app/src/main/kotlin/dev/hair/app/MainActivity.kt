@@ -6,7 +6,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.compose.material3.MaterialTheme
+import dev.hair.app.ui.theme.HairTheme
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.hair.app.ui.HairScreen
@@ -18,7 +18,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme {
+            HairTheme {
                 val state by viewModel.state.collectAsStateWithLifecycle()
                 val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
                     val data = it.data

@@ -4,3 +4,7 @@ build/
 .idea/
 *.iml
 client_secret_*.json
+# 本机截图和参考图不入库
+/*.jpg
+/*.jpeg
+/*.png
