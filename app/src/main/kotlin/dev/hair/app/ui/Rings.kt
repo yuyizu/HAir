@@ -24,7 +24,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 /** 完成度 0..1；没有数据返回 null（画空圈），超过目标按满环处理。 */
 fun ringProgress(value: Long?, goal: Long): Float? = value?.let { (it.toFloat() / goal).coerceIn(0f, 1f) }
 
-/** 两层同心环，外环 [outer]、内环 [inner]；null 只画底轨。进入时从 0 动画填充到目标。 */
+/** 两层同心环，外环 [outer]、内环 [inner]；null 只画底轨。[animateFromZero] 为 true 时首次从 0 填充到目标，之后数据变化从当前位置接着走。 */
 @Composable
 fun ActivityRings(
     outer: Float?,
@@ -32,17 +32,18 @@ fun ActivityRings(
     outerColor: Color,
     innerColor: Color,
     trackColor: Color,
+    animateFromZero: Boolean,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
-    var outerTarget by remember { mutableFloatStateOf(0f) }
-    var innerTarget by remember { mutableFloatStateOf(0f) }
+    var outerTarget by remember { mutableFloatStateOf(if (animateFromZero) 0f else outer ?: 0f) }
+    var innerTarget by remember { mutableFloatStateOf(if (animateFromZero) 0f else inner ?: 0f) }
     LaunchedEffect(outer, inner) {
         outerTarget = outer ?: 0f
         innerTarget = inner ?: 0f
     }
-    val outerShown by animateFloatAsState(outerTarget, tween(700), label = "outerRing")
-    val innerShown by animateFloatAsState(innerTarget, tween(700), label = "innerRing")
+    val outerShown by animateFloatAsState(outerTarget, tween(COUNT_MS), label = "outerRing")
+    val innerShown by animateFloatAsState(innerTarget, tween(COUNT_MS), label = "innerRing")
 
     Box(modifier.aspectRatio(1f), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {

@@ -1,5 +1,7 @@
 package dev.hair.app.ui
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -16,12 +18,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import dev.hair.app.data.Overview
 import dev.hair.app.ui.theme.linkColor
+import kotlinx.coroutines.delay
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -36,48 +40,71 @@ private val DATE_FORMAT = DateTimeFormatter.ofPattern("M月d日 EEEE", Locale.CH
 private val SHORT_DATE = DateTimeFormatter.ofPattern("M月d日", Locale.CHINA)
 private val UPDATED_FORMAT = DateTimeFormatter.ofPattern("M月d日 HH:mm", Locale.CHINA)
 
+/**
+ * [animateIn] 为 true 表示首次出场还没播过：卡片依次入场，圆环和数字从 0 涨起；
+ * 播完后调用 [onIntroDone]，此后切回本页或滚动都不再重播，只有数据变化时数字接着滚。
+ */
 @Composable
-fun TodayTab(state: UiState.Ready, onRefresh: () -> Unit) {
+fun TodayTab(state: UiState.Ready, onRefresh: () -> Unit, animateIn: Boolean, onIntroDone: () -> Unit) {
     val o = state.snapshot.overview
     val colors = MaterialTheme.colorScheme
+    val steps = animatedCount(o.stepsToday, animateIn)
+    val restingHr = animatedCount(o.restingHr, animateIn)
+    val latestHr = animatedCount(o.latestHr, animateIn)
+
+    LaunchedEffect(Unit) {
+        delay(INTRO_TOTAL_MS)
+        onIntroDone()
+    }
+
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item { SummaryHeader(state, onRefresh) }
-        item { SectionTitle("收藏") }
-        item { ActivityCard(o) }
+        item { Entrance(0, animateIn) { SummaryHeader(state, onRefresh) } }
+        item { Entrance(1, animateIn) { SectionTitle("收藏") } }
+        item { Entrance(2, animateIn) { ActivityCard(o, steps, animateIn) } }
         item {
-            SummaryCard("步数", colors.primary, time = "今天") {
-                ValueText(o.stepsToday?.let { "%,d".format(it) }, "步")
+            Entrance(3, animateIn) {
+                SummaryCard("步数", colors.primary, time = "今天") { ValueText(steps?.let { "%,d".format(it) }, "步") }
             }
         }
         item {
-            SummaryCard("睡眠", colors.secondary, time = o.lastNight?.date?.let(SHORT_DATE::format)) {
-                ValueText(o.lastNight?.asleepMin?.let(::formatMinutes))
+            Entrance(4, animateIn) {
+                SummaryCard("睡眠", colors.secondary, time = o.lastNight?.date?.let(SHORT_DATE::format)) {
+                    ValueText(o.lastNight?.asleepMin?.let(::formatMinutes))
+                }
             }
         }
         item {
-            SummaryCard("静息心率", colors.tertiary) { ValueText(o.restingHr?.toString(), "bpm") }
-        }
-        item {
-            SummaryCard("心率", colors.tertiary, time = o.latestHr?.let { "6 小时内" }) {
-                ValueText(o.latestHr?.toString(), "bpm")
+            Entrance(5, animateIn) {
+                SummaryCard("静息心率", colors.tertiary) { ValueText(restingHr?.toString(), "bpm") }
             }
         }
         item {
-            SummaryCard("心率变异性", colors.tertiary) { ValueText(o.hrvMs?.let { "%.0f".format(it) }, "ms") }
+            Entrance(6, animateIn) {
+                SummaryCard("心率", colors.tertiary, time = o.latestHr?.let { "6 小时内" }) {
+                    ValueText(latestHr?.toString(), "bpm")
+                }
+            }
         }
         item {
-            SummaryCard("心肺适能", colors.tertiary, time = o.cardioFitness?.date?.let(SHORT_DATE::format)) {
-                ValueText(o.cardioFitness?.level?.let(::cardioLevelLabel))
-                o.cardioFitness?.let {
-                    Text(
-                        "VO₂max %.1f ml/kg/min".format(it.vo2Max),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = colors.onSurfaceVariant,
-                    )
+            Entrance(7, animateIn) {
+                SummaryCard("心率变异性", colors.tertiary) { ValueText(o.hrvMs?.let { "%.0f".format(it) }, "ms") }
+            }
+        }
+        item {
+            Entrance(8, animateIn) {
+                SummaryCard("心肺适能", colors.tertiary, time = o.cardioFitness?.date?.let(SHORT_DATE::format)) {
+                    ValueText(o.cardioFitness?.level?.let(::cardioLevelLabel))
+                    o.cardioFitness?.let {
+                        Text(
+                            "VO₂max %.1f ml/kg/min".format(it.vo2Max),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }
@@ -96,25 +123,28 @@ private fun SummaryHeader(state: UiState.Ready, onRefresh: () -> Unit) {
         Column(Modifier.weight(1f)) {
             Text(DATE_FORMAT.format(LocalDate.now()), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text("摘要", style = MaterialTheme.typography.headlineLarge)
-            Text(text, style = MaterialTheme.typography.bodySmall, color = color, modifier = Modifier.padding(top = 2.dp))
+            // 状态文字换句时淡入淡出，用户能看出“开始更新 → 更新完成”
+            Crossfade(targetState = text, animationSpec = tween(200), label = "status") { t ->
+                Text(t, style = MaterialTheme.typography.bodySmall, color = color, modifier = Modifier.padding(top = 2.dp))
+            }
         }
         TextButton(onClick = onRefresh, enabled = !state.refreshing) { Text("刷新", color = linkColor()) }
     }
 }
 
 @Composable
-private fun ActivityCard(o: Overview) {
+private fun ActivityCard(o: Overview, steps: Long?, animateIn: Boolean) {
     val colors = MaterialTheme.colorScheme
-    val steps = o.stepsToday
     val sleep = o.lastNight?.asleepMin
     SummaryCard("活动", colors.primary, time = "今天") {
         Row(verticalAlignment = Alignment.CenterVertically) {
             ActivityRings(
-                outer = ringProgress(steps, STEP_GOAL),
+                outer = ringProgress(o.stepsToday, STEP_GOAL),
                 inner = ringProgress(sleep, SLEEP_GOAL_MIN),
                 outerColor = colors.primary,
                 innerColor = colors.secondary,
                 trackColor = colors.surfaceVariant,
+                animateFromZero = animateIn,
                 modifier = Modifier.size(104.dp),
             ) {}
             Spacer(Modifier.width(20.dp))

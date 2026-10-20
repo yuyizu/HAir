@@ -1,6 +1,8 @@
 package dev.hair.app.ui
 
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,6 +16,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -60,10 +63,15 @@ private fun InfoRow(label: String, value: String) {
 
 @Composable
 private fun ActionRow(label: String, color: Color, enabled: Boolean = true, onClick: () -> Unit) {
+    val source = remember { MutableInteractionSource() }
     Text(
         label,
         style = MaterialTheme.typography.titleMedium,
         color = if (enabled) color else MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.fillMaxWidth().clickable(enabled = enabled, onClick = onClick).padding(16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .pressScale(source)
+            .clickable(interactionSource = source, indication = LocalIndication.current, enabled = enabled, onClick = onClick)
+            .padding(16.dp),
     )
 }
