@@ -44,7 +44,7 @@ class AuthManager(context: Context) {
         )
             .setScopes(SCOPES)
             // 确保每次登录都拿到 refresh token（Google 对重复授权默认不再下发）
-            .setAdditionalParameters(mapOf("prompt" to "consent"))
+            .setPrompt(AuthorizationRequest.Prompt.CONSENT)
             .build()
         return service.getAuthorizationRequestIntent(request)
     }
