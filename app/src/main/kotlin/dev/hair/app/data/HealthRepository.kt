@@ -28,6 +28,9 @@ class HealthRepository(private val api: HealthApi) {
             api.list("daily-heart-rate-variability", "daily_heart_rate_variability.date >= \"$since\"", 5)
         }
         val steps = async { api.dailySteps(today, today.plusDays(1)) }
+        val cardio = async {
+            api.list("daily-vo2-max", "daily_vo2_max.date >= \"${today.minusDays(30)}\"", 5)
+        }
         val hr = async {
             val from = Instant.now().minus(Duration.ofHours(6))
             api.list("heart-rate", "heart_rate.sample_time.physical_time >= \"$from\"", 1)
@@ -40,6 +43,7 @@ class HealthRepository(private val api: HealthApi) {
             hrvMs = hrv.await().firstOrNull()?.dailyHeartRateVariability?.averageHeartRateVariabilityMilliseconds,
             stepsToday = steps.await().firstOrNull()?.steps?.countSum?.toLongOrNull(),
             latestHr = hr.await().firstOrNull()?.heartRate?.beatsPerMinute?.toLongOrNull(),
+            cardioFitness = cardio.await().firstNotNullOfOrNull { it.toCardioFitness() },
         )
     }
 }

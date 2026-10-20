@@ -70,4 +70,24 @@ class DomainTest {
         val resp = HealthJson.decodeFromString<DailyRollUpResponse>(json)
         assertEquals("8123", resp.rollupDataPoints.single().steps?.countSum)
     }
+
+    @Test
+    fun `每日 VO2max 映射为心肺适能，等级取自 cardioFitnessLevel`() {
+        val json = """{"dataPoints":[{"dailyVo2Max":{"date":{"year":2026,"month":10,"day":19},
+            "vo2Max":42.5,"estimated":true,"cardioFitnessLevel":"VERY_GOOD"}}]}"""
+        val c = HealthJson.decodeFromString<ListResponse>(json).dataPoints.single().toCardioFitness()!!
+        assertEquals(LocalDate.of(2026, 10, 19), c.date)
+        assertEquals(42.5, c.vo2Max, 0.0)
+        assertEquals(CardioLevel.VERY_GOOD, c.level)
+    }
+
+    @Test
+    fun `UNSPECIFIED 等级视为未给出等级，缺 VO2max 或日期则不映射`() {
+        val date = Date(2026, 10, 19)
+        val unspecified = DataPoint(dailyVo2Max = DailyVo2Max(date, 40.0, "CARDIO_FITNESS_LEVEL_UNSPECIFIED"))
+        assertNull(unspecified.toCardioFitness()!!.level)
+        assertNull(DataPoint(dailyVo2Max = DailyVo2Max(date, null, "GOOD")).toCardioFitness())
+        assertNull(DataPoint(dailyVo2Max = DailyVo2Max(null, 40.0, "GOOD")).toCardioFitness())
+        assertNull(DataPoint().toCardioFitness())
+    }
 }

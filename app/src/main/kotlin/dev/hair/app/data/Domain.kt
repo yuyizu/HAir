@@ -19,6 +19,7 @@ data class Overview(
     val hrvMs: Double?,
     val stepsToday: Long?,
     val latestHr: Long?,
+    val cardioFitness: CardioFitness?,
 )
 
 private fun String?.minutes(): Long = this?.toLongOrNull() ?: 0L
@@ -43,3 +44,17 @@ fun DataPoint.toNight(): Night? {
 }
 
 fun Sleep.isMainSleep(): Boolean = metadata?.nap != true
+
+/** Google 已按年龄、性别归一化的心肺适能等级，[level] 为 null 表示未给出等级。 */
+data class CardioFitness(val date: LocalDate, val vo2Max: Double, val level: CardioLevel?)
+
+enum class CardioLevel { POOR, FAIR, AVERAGE, GOOD, VERY_GOOD, EXCELLENT }
+
+/** VO2Max 缺失时无法展示，返回 null；等级枚举之外的值（含 UNSPECIFIED）视为未给出等级。 */
+fun DataPoint.toCardioFitness(): CardioFitness? {
+    val daily = dailyVo2Max ?: return null
+    val date = daily.date?.toLocalDate() ?: return null
+    val vo2Max = daily.vo2Max ?: return null
+    val level = CardioLevel.entries.firstOrNull { it.name == daily.cardioFitnessLevel }
+    return CardioFitness(date, vo2Max, level)
+}

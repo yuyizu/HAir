@@ -25,6 +25,7 @@ data class DataPoint(
     val heartRate: HeartRate? = null,
     val dailyRestingHeartRate: DailyRestingHeartRate? = null,
     val dailyHeartRateVariability: DailyHeartRateVariability? = null,
+    val dailyVo2Max: DailyVo2Max? = null,
 )
 
 @Serializable
@@ -97,3 +98,10 @@ data class DailyRollupDataPoint(
 
 @Serializable
 data class StepsRollupValue(val countSum: String? = null)
+
+@Serializable
+data class DailyVo2Max(
+    val date: Date? = null,
+    val vo2Max: Double? = null,
+    val cardioFitnessLevel: String? = null,
+)

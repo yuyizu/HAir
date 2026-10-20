@@ -32,6 +32,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import dev.hair.app.data.CardioFitness
+import dev.hair.app.data.CardioLevel
 import dev.hair.app.data.Night
 import dev.hair.app.data.Overview
 
@@ -111,6 +113,7 @@ private fun TodayTab(o: Overview) {
         }
         item { MetricCard("静息心率", o.restingHr?.let { "$it bpm" } ?: "暂无数据") }
         item { MetricCard("HRV", o.hrvMs?.let { "%.0f ms".format(it) } ?: "暂无数据") }
+        item { CardioFitnessCard(o.cardioFitness) }
         item { MetricCard("今日步数", o.stepsToday?.toString() ?: "暂无数据") }
         item { MetricCard("最近心率（6 小时内）", o.latestHr?.let { "$it bpm" } ?: "暂无数据") }
     }
@@ -170,3 +173,18 @@ private fun StageBar(n: Night) {
 }
 
 fun formatMinutes(minutes: Long): String = "${minutes / 60} 小时 ${minutes % 60} 分"
+
+@Composable
+private fun CardioFitnessCard(c: CardioFitness?) {
+    val value = c?.level?.let(::cardioLevelLabel) ?: if (c != null) "暂无等级" else "暂无数据"
+    MetricCard("心肺适能", value, c?.let { "VO₂max %.1f ml/kg/min · %s".format(it.vo2Max, it.date) })
+}
+
+private fun cardioLevelLabel(level: CardioLevel): String = when (level) {
+    CardioLevel.POOR -> "较差"
+    CardioLevel.FAIR -> "一般"
+    CardioLevel.AVERAGE -> "平均"
+    CardioLevel.GOOD -> "良好"
+    CardioLevel.VERY_GOOD -> "很好"
+    CardioLevel.EXCELLENT -> "优秀"
+}
