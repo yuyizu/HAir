@@ -9,12 +9,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -25,6 +26,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.hair.app.data.CardioLevel
@@ -79,11 +82,7 @@ private fun ReadyScreen(state: UiState.Ready, onRefresh: () -> Unit, onSignOut: 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                TABS.forEachIndexed { i, label ->
-                    NavigationBarItem(selected = tab == i, onClick = { tab = i }, icon = {}, label = { Text(label) })
-                }
-            }
+            TabBar(selected = tab, onSelect = { tab = it })
         },
     ) { padding ->
         Box(Modifier.padding(padding).statusBarsPadding()) {
@@ -91,6 +90,31 @@ private fun ReadyScreen(state: UiState.Ready, onRefresh: () -> Unit, onSignOut: 
                 0 -> TodayTab(state, onRefresh)
                 1 -> SleepTab(state.snapshot.nights)
                 else -> ProfileTab(state, onRefresh, onSignOut)
+            }
+        }
+    }
+}
+
+/** 纯文字标签栏：顶部细线，选中项加粗；没有图标，所以没有空图标位。 */
+@Composable
+private fun TabBar(selected: Int, onSelect: (Int) -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Column(Modifier.background(colors.surface).navigationBarsPadding()) {
+        HorizontalDivider(color = colors.outlineVariant)
+        Row(Modifier.fillMaxWidth()) {
+            TABS.forEachIndexed { i, label ->
+                val isSelected = i == selected
+                Text(
+                    label,
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                    color = if (isSelected) colors.onSurface else colors.onSurfaceVariant,
+                    modifier = Modifier
+                        .weight(1f)
+                        .selectable(selected = isSelected, role = Role.Tab, onClick = { onSelect(i) })
+                        .padding(vertical = 14.dp),
+                )
             }
         }
     }
