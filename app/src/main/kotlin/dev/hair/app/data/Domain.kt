@@ -1,8 +1,18 @@
+@file:UseSerializers(LocalDateSerializer::class)
+
 package dev.hair.app.data
 
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.UseSerializers
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
 import java.time.LocalDate
 
 /** 一晚睡眠，分钟数；日期是醒来当天（civil end date）。 */
+@Serializable
 data class Night(
     val date: LocalDate,
     val asleepMin: Long,
@@ -13,6 +23,7 @@ data class Night(
     val awakeMin: Long,
 )
 
+@Serializable
 data class Overview(
     val lastNight: Night?,
     val restingHr: Long?,
@@ -46,6 +57,7 @@ fun DataPoint.toNight(): Night? {
 fun Sleep.isMainSleep(): Boolean = metadata?.nap != true
 
 /** Google 已按年龄、性别归一化的心肺适能等级，[level] 为 null 表示未给出等级。 */
+@Serializable
 data class CardioFitness(val date: LocalDate, val vo2Max: Double, val level: CardioLevel?)
 
 enum class CardioLevel { POOR, FAIR, AVERAGE, GOOD, VERY_GOOD, EXCELLENT }
@@ -57,4 +69,11 @@ fun DataPoint.toCardioFitness(): CardioFitness? {
     val vo2Max = daily.vo2Max ?: return null
     val level = CardioLevel.entries.firstOrNull { it.name == daily.cardioFitnessLevel }
     return CardioFitness(date, vo2Max, level)
+}
+
+/** LocalDate 以 ISO-8601 字符串（yyyy-MM-dd）持久化。 */
+object LocalDateSerializer : KSerializer<LocalDate> {
+    override val descriptor = PrimitiveSerialDescriptor("LocalDate", PrimitiveKind.STRING)
+    override fun serialize(encoder: Encoder, value: LocalDate) = encoder.encodeString(value.toString())
+    override fun deserialize(decoder: Decoder): LocalDate = LocalDate.parse(decoder.decodeString())
 }

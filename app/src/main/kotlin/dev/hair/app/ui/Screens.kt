@@ -36,6 +36,9 @@ import dev.hair.app.data.CardioFitness
 import dev.hair.app.data.CardioLevel
 import dev.hair.app.data.Night
 import dev.hair.app.data.Overview
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 private val DeepColor = Color(0xFF3F51B5)
 private val RemColor = Color(0xFF9C27B0)
@@ -99,10 +102,25 @@ private fun ReadyScreen(state: UiState.Ready, onRefresh: () -> Unit, onSignOut: 
                 Spacer(Modifier.padding(4.dp))
                 OutlinedButton(onClick = onSignOut) { Text("退出") }
             }
-            if (tab == 0) TodayTab(state.overview) else SleepTab(state.nights)
+            StatusLine(state)
+            if (tab == 0) TodayTab(state.snapshot.overview) else SleepTab(state.snapshot.nights)
         }
     }
 }
+
+@Composable
+private fun StatusLine(state: UiState.Ready) {
+    val updatedAt = TIME_FORMAT.format(Instant.ofEpochMilli(state.snapshot.fetchedAtMillis).atZone(ZoneId.systemDefault()))
+    val text = when {
+        state.refreshing -> "正在更新…（当前显示 $updatedAt 的数据）"
+        state.refreshError != null -> "更新失败，显示的是 $updatedAt 的数据：${state.refreshError}"
+        else -> "更新于 $updatedAt"
+    }
+    val color = if (state.refreshError != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+    Text(text, style = MaterialTheme.typography.bodySmall, color = color, modifier = Modifier.padding(top = 4.dp))
+}
+
+private val TIME_FORMAT = DateTimeFormatter.ofPattern("M月d日 HH:mm")
 
 @Composable
 private fun TodayTab(o: Overview) {

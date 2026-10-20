@@ -6,19 +6,27 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.hair.app.HairApp
 import dev.hair.app.data.HealthApiException
-import dev.hair.app.data.Night
-import dev.hair.app.data.Overview
+import dev.hair.app.data.Snapshot
+import dev.hair.app.sync.SyncScheduler
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import net.openid.appauth.AuthorizationException
+import java.io.IOException
 
 sealed interface UiState {
     data object Loading : UiState
     data object SignedOut : UiState
-    data class Ready(val overview: Overview, val nights: List<Night>) : UiState
+
+    /** [refreshing] 为 true 时正在后台更新；[refreshError] 非空表示这次更新失败，展示的是旧缓存。 */
+    data class Ready(
+        val snapshot: Snapshot,
+        val refreshing: Boolean = false,
+        val refreshError: String? = null,
+    ) : UiState
+
     data class Error(val message: String) : UiState
 }
 
@@ -44,37 +52,48 @@ class HairViewModel(app: Application) : AndroidViewModel(app) {
     fun onAuthResult(data: Intent) = load {
         auth.completeSignIn(data)
         repository.verifyAccountLinked()
+        SyncScheduler.schedule(hair)
     }
 
     fun onAuthCancelled() {
         _state.value = UiState.SignedOut
     }
 
+    /** 退出时必须清掉本机缓存的健康数据并停止后台同步。 */
     fun signOut() {
+        SyncScheduler.cancel(hair)
         auth.signOut()
+        repository.clearCache()
         _state.value = UiState.SignedOut
     }
 
     fun refresh() = load {}
 
-    private fun load(beforeLoad: suspend () -> Unit) {
-        _state.value = UiState.Loading
+    /** 有缓存时先展示缓存并在其上刷新；刷新失败保留缓存并带上错误，没有缓存才进入整页错误。 */
+    private fun load(beforeRefresh: suspend () -> Unit) {
+        val cached = repository.cached()
+        _state.value = cached?.let { UiState.Ready(it, refreshing = true) } ?: UiState.Loading
         viewModelScope.launch {
-            _state.value = try {
-                beforeLoad()
-                UiState.Ready(repository.overview(), repository.nights(days = 14))
+            try {
+                beforeRefresh()
+                _state.value = UiState.Ready(repository.refresh())
             } catch (e: CancellationException) {
                 throw e
             } catch (e: HealthApiException) {
-                UiState.Error(
-                    if (e.isAccountNotLinked) "账号尚未关联：请先在 Google Health app 中登录并关联该 Google 账号"
-                    else e.message.orEmpty(),
-                )
+                fail(cached, if (e.isAccountNotLinked) ACCOUNT_NOT_LINKED else e.message.orEmpty())
             } catch (e: AuthorizationException) {
-                UiState.Error("登录失败或已失效（${e.errorDescription ?: e.error}），请退出后重新登录")
-            } catch (e: java.io.IOException) {
-                UiState.Error("网络错误：${e.message}")
+                fail(cached, "登录失败或已失效（${e.errorDescription ?: e.error}），请退出后重新登录")
+            } catch (e: IOException) {
+                fail(cached, "网络错误：${e.message}")
             }
         }
+    }
+
+    private fun fail(cached: Snapshot?, message: String) {
+        _state.value = cached?.let { UiState.Ready(it, refreshError = message) } ?: UiState.Error(message)
+    }
+
+    private companion object {
+        const val ACCOUNT_NOT_LINKED = "账号尚未关联：请先在 Google Health app 中登录并关联该 Google 账号"
     }
 }
