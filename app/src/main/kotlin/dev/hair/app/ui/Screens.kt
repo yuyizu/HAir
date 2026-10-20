@@ -1,6 +1,7 @@
 package dev.hair.app.ui
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
@@ -51,12 +52,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.hair.app.data.CardioLevel
+import dev.hair.app.data.DetailRange
+import dev.hair.app.data.Metric
 
 private val TABS = listOf("摘要", "睡眠", "我的")
 private val INDICATOR_WIDTH = 28.dp
 
 @Composable
-fun HairScreen(state: UiState, onSignIn: () -> Unit, onRefresh: () -> Unit, onSignOut: () -> Unit) {
+fun HairScreen(
+    state: UiState,
+    onSignIn: () -> Unit,
+    onRefresh: () -> Unit,
+    onSignOut: () -> Unit,
+    loadSeries: suspend (Metric, DetailRange) -> SeriesResult,
+) {
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         when (state) {
             UiState.Loading -> Centered { CircularProgressIndicator() }
@@ -69,7 +78,7 @@ fun HairScreen(state: UiState, onSignIn: () -> Unit, onRefresh: () -> Unit, onSi
                     OutlinedButton(onClick = onSignOut) { Text("退出登录") }
                 }
             }
-            is UiState.Ready -> ReadyScreen(state, onRefresh, onSignOut)
+            is UiState.Ready -> ReadyScreen(state, onRefresh, onSignOut, loadSeries)
         }
     }
 }
@@ -98,34 +107,58 @@ private fun SignedOutScreen(onSignIn: () -> Unit) = Centered {
 }
 
 @Composable
-private fun ReadyScreen(state: UiState.Ready, onRefresh: () -> Unit, onSignOut: () -> Unit) {
+private fun ReadyScreen(
+    state: UiState.Ready,
+    onRefresh: () -> Unit,
+    onSignOut: () -> Unit,
+    loadSeries: suspend (Metric, DetailRange) -> SeriesResult,
+) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var introPlayed by rememberSaveable { mutableStateOf(false) }
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        bottomBar = {
-            TabBar(selected = tab, onSelect = { tab = it })
-        },
-    ) { padding ->
-        Box(Modifier.padding(padding).statusBarsPadding()) {
-            // 往右边的标签切换，新内容从右边滑入、旧内容往左退出；往左切反过来。进入比离开慢。
-            AnimatedContent(
-                targetState = tab,
-                transitionSpec = {
-                    val dir = if (targetState > initialState) 1 else -1
-                    (slideInHorizontally(tween(320, easing = LinearOutSlowInEasing)) { dir * it / 8 } +
-                        fadeIn(tween(320, easing = LinearOutSlowInEasing))) togetherWith
-                        (slideOutHorizontally(tween(200, easing = FastOutLinearInEasing)) { -dir * it / 8 } +
-                            fadeOut(tween(200, easing = FastOutLinearInEasing)))
-                },
-                label = "tab",
-            ) { current ->
-                when (current) {
-                    0 -> TodayTab(state, onRefresh, animateIn = !introPlayed, onIntroDone = { introPlayed = true })
-                    1 -> SleepTab(state.snapshot.nights)
-                    else -> ProfileTab(state, onRefresh, onSignOut)
+    var detailOpen by rememberSaveable { mutableStateOf(false) }
+    Box(Modifier.fillMaxSize()) {
+        Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
+            bottomBar = {
+                TabBar(selected = tab, onSelect = { tab = it })
+            },
+        ) { padding ->
+            Box(Modifier.padding(padding).statusBarsPadding()) {
+                // 往右边的标签切换，新内容从右边滑入、旧内容往左退出；往左切反过来。进入比离开慢。
+                AnimatedContent(
+                    targetState = tab,
+                    transitionSpec = {
+                        val dir = if (targetState > initialState) 1 else -1
+                        (slideInHorizontally(tween(320, easing = LinearOutSlowInEasing)) { dir * it / 8 } +
+                            fadeIn(tween(320, easing = LinearOutSlowInEasing))) togetherWith
+                            (slideOutHorizontally(tween(200, easing = FastOutLinearInEasing)) { -dir * it / 8 } +
+                                fadeOut(tween(200, easing = FastOutLinearInEasing)))
+                    },
+                    label = "tab",
+                ) { current ->
+                    when (current) {
+                        0 -> TodayTab(
+                            state,
+                            onRefresh,
+                            animateIn = !introPlayed,
+                            onIntroDone = { introPlayed = true },
+                            onOpenDetail = { detailOpen = true },
+                        )
+                        1 -> SleepTab(state.snapshot.nights)
+                        else -> ProfileTab(state, onRefresh, onSignOut)
+                    }
                 }
             }
+        }
+        // 详情页从右侧整页滑入，盖住标签栏；摘要页保持在下面，返回时滚动位置还在。进入比离开慢。
+        AnimatedVisibility(
+            visible = detailOpen,
+            enter = slideInHorizontally(tween(320, easing = LinearOutSlowInEasing)) { it } +
+                fadeIn(tween(320, easing = LinearOutSlowInEasing)),
+            exit = slideOutHorizontally(tween(200, easing = FastOutLinearInEasing)) { it } +
+                fadeOut(tween(200, easing = FastOutLinearInEasing)),
+        ) {
+            DetailScreen(onBack = { detailOpen = false }, loadSeries = loadSeries)
         }
     }
 }

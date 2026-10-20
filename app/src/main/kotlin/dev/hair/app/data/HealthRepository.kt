@@ -5,6 +5,7 @@ import kotlinx.coroutines.coroutineScope
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 
 class HealthRepository(private val api: HealthApi, private val store: SnapshotStore) {
 
@@ -24,7 +25,7 @@ class HealthRepository(private val api: HealthApi, private val store: SnapshotSt
         val hrv = async {
             api.list("daily-heart-rate-variability", "daily_heart_rate_variability.date >= \"$since\"", 5)
         }
-        val steps = async { api.dailySteps(today, today.plusDays(1)) }
+        val steps = async { api.dailyRollUp(Metric.STEPS, today, today.plusDays(1)) }
         val cardio = async {
             api.list("daily-vo2-max", "daily_vo2_max.date >= \"${today.minusDays(30)}\"", 5)
         }
@@ -45,6 +46,27 @@ class HealthRepository(private val api: HealthApi, private val store: SnapshotSt
             cardioFitness = cardio.await().firstNotNullOfOrNull { it.toCardioFitness() },
         )
         Snapshot(overview, allNights, System.currentTimeMillis()).also(store::save)
+    }
+
+    /**
+     * 详情页的时间序列，不入缓存，每次现取。日档是 [today] 当天的 24 个小时桶，
+     * 周、月档是截至 [today] 的最近 7、30 天。任何一步失败都会抛出。
+     */
+    suspend fun series(
+        metric: Metric,
+        range: DetailRange,
+        today: LocalDate = LocalDate.now(),
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): Series = when (range) {
+        DetailRange.DAY -> {
+            val start = today.atStartOfDay(zone).toInstant()
+            val end = today.plusDays(1).atStartOfDay(zone).toInstant()
+            hourlySeries(today, api.hourlyRollUp(metric, start, end), zone, metric)
+        }
+        else -> {
+            val from = today.minusDays(range.days - 1L)
+            dailySeries(range, today, api.dailyRollUp(metric, from, today.plusDays(1)), metric)
+        }
     }
 
     /** 最近 [days] 天醒来的主睡眠（排除小睡），新的在前。 */

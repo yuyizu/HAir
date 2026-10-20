@@ -11,6 +11,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.time.Instant
 import java.time.LocalDate
 
 class HealthApiException(val code: Int, val body: String) :
@@ -38,13 +39,22 @@ class HealthApi(
         return HealthJson.decodeFromString<ListResponse>(body).dataPoints
     }
 
-    /** 按天汇总步数，[from] 含，[toExclusive] 不含。 */
-    suspend fun dailySteps(from: LocalDate, toExclusive: LocalDate): List<DailyRollupDataPoint> {
+    /** 按天汇总 [metric]，[from] 含，[toExclusive] 不含。 */
+    suspend fun dailyRollUp(metric: Metric, from: LocalDate, toExclusive: LocalDate): List<DailyRollupDataPoint> {
         val payload = DailyRollUpRequest(CivilRange(from.toCivil(), toExclusive.toCivil()))
         val request = Request.Builder()
-            .url("$BASE/users/me/dataTypes/steps/dataPoints:dailyRollUp")
+            .url("$BASE/users/me/dataTypes/${metric.dataType}/dataPoints:dailyRollUp")
             .post(HealthJson.encodeToString(payload).toRequestBody(JSON))
         return HealthJson.decodeFromString<DailyRollUpResponse>(execute(request)).rollupDataPoints
+    }
+
+    /** 按小时汇总 [metric]，[start] 含，[end] 不含。 */
+    suspend fun hourlyRollUp(metric: Metric, start: Instant, end: Instant): List<RollupDataPoint> {
+        val payload = RollUpRequest("3600s", TimeInterval(start.toString(), end.toString()))
+        val request = Request.Builder()
+            .url("$BASE/users/me/dataTypes/${metric.dataType}/dataPoints:rollUp")
+            .post(HealthJson.encodeToString(payload).toRequestBody(JSON))
+        return HealthJson.decodeFromString<RollUpResponse>(execute(request)).rollupDataPoints
     }
 
     private suspend fun execute(builder: Request.Builder): String {

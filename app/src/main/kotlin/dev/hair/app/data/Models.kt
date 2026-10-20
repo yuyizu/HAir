@@ -94,6 +94,7 @@ data class DailyRollUpResponse(val rollupDataPoints: List<DailyRollupDataPoint> 
 data class DailyRollupDataPoint(
     val civilStartTime: CivilDateTime? = null,
     val steps: StepsRollupValue? = null,
+    val activeEnergyBurned: EnergyRollupValue? = null,
 )
 
 @Serializable
@@ -105,3 +106,24 @@ data class DailyVo2Max(
     val vo2Max: Double? = null,
     val cardioFitnessLevel: String? = null,
 )
+
+@Serializable
+data class TimeInterval(val startTime: String, val endTime: String)
+
+/** 物理时间窗口汇总，[windowSize] 为 google-duration，如 "3600s"；[range] 左闭右开。 */
+@Serializable
+data class RollUpRequest(val windowSize: String, val range: TimeInterval)
+
+@Serializable
+data class RollUpResponse(val rollupDataPoints: List<RollupDataPoint> = emptyList())
+
+@Serializable
+data class RollupDataPoint(
+    val startTime: String? = null,
+    val endTime: String? = null,
+    val steps: StepsRollupValue? = null,
+    val activeEnergyBurned: EnergyRollupValue? = null,
+)
+
+@Serializable
+data class EnergyRollupValue(val kcalSum: Double? = null)

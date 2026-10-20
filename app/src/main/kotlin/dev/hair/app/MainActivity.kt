@@ -29,6 +29,7 @@ class MainActivity : ComponentActivity() {
                     onSignIn = { viewModel.signInIntent()?.let(launcher::launch) },
                     onRefresh = viewModel::refresh,
                     onSignOut = viewModel::signOut,
+                    loadSeries = viewModel::loadSeries,
                 )
             }
         }

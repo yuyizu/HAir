@@ -5,7 +5,10 @@ import android.content.Intent
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.hair.app.HairApp
+import dev.hair.app.data.DetailRange
 import dev.hair.app.data.HealthApiException
+import dev.hair.app.data.Metric
+import dev.hair.app.data.Series
 import dev.hair.app.data.Snapshot
 import dev.hair.app.sync.SyncScheduler
 import kotlinx.coroutines.CancellationException
@@ -28,6 +31,12 @@ sealed interface UiState {
     ) : UiState
 
     data class Error(val message: String) : UiState
+}
+
+/** 详情页一次取数的结果；失败的 [message] 可直接展示给用户。 */
+sealed interface SeriesResult {
+    data class Loaded(val series: Series) : SeriesResult
+    data class Failed(val message: String) : SeriesResult
 }
 
 class HairViewModel(app: Application) : AndroidViewModel(app) {
@@ -69,6 +78,15 @@ class HairViewModel(app: Application) : AndroidViewModel(app) {
 
     fun refresh() = load {}
 
+    /** 详情页的时间序列不入缓存，每次现取；由调用方的协程负责取消。 */
+    suspend fun loadSeries(metric: Metric, range: DetailRange): SeriesResult = try {
+        SeriesResult.Loaded(repository.series(metric, range))
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        SeriesResult.Failed(describe(e) ?: throw e)
+    }
+
     /** 有缓存时先展示缓存并在其上刷新；刷新失败保留缓存并带上错误，没有缓存才进入整页错误。 */
     private fun load(beforeRefresh: suspend () -> Unit) {
         val cached = repository.cached()
@@ -79,18 +97,22 @@ class HairViewModel(app: Application) : AndroidViewModel(app) {
                 _state.value = UiState.Ready(repository.refresh())
             } catch (e: CancellationException) {
                 throw e
-            } catch (e: HealthApiException) {
-                fail(cached, if (e.isAccountNotLinked) ACCOUNT_NOT_LINKED else e.message.orEmpty())
-            } catch (e: AuthorizationException) {
-                fail(cached, "登录失败或已失效（${e.errorDescription ?: e.error}），请退出后重新登录")
-            } catch (e: IOException) {
-                fail(cached, "网络错误：${e.message}")
+            } catch (e: Exception) {
+                fail(cached, describe(e) ?: throw e)
             }
         }
     }
 
     private fun fail(cached: Snapshot?, message: String) {
         _state.value = cached?.let { UiState.Ready(it, refreshError = message) } ?: UiState.Error(message)
+    }
+
+    /** 可预期的失败（接口、授权、网络）转成用户可读的文案；其他异常是程序错误，返回 null 由调用方继续抛出。 */
+    private fun describe(e: Exception): String? = when (e) {
+        is HealthApiException -> if (e.isAccountNotLinked) ACCOUNT_NOT_LINKED else e.message.orEmpty()
+        is AuthorizationException -> "登录失败或已失效（${e.errorDescription ?: e.error}），请退出后重新登录"
+        is IOException -> "网络错误：${e.message}"
+        else -> null
     }
 
     private companion object {

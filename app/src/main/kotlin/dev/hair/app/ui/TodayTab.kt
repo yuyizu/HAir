@@ -45,7 +45,13 @@ private val UPDATED_FORMAT = DateTimeFormatter.ofPattern("M月d日 HH:mm", Local
  * 播完后调用 [onIntroDone]，此后切回本页或滚动都不再重播，只有数据变化时数字接着滚。
  */
 @Composable
-fun TodayTab(state: UiState.Ready, onRefresh: () -> Unit, animateIn: Boolean, onIntroDone: () -> Unit) {
+fun TodayTab(
+    state: UiState.Ready,
+    onRefresh: () -> Unit,
+    animateIn: Boolean,
+    onIntroDone: () -> Unit,
+    onOpenDetail: () -> Unit,
+) {
     val o = state.snapshot.overview
     val colors = MaterialTheme.colorScheme
     val steps = animatedCount(o.stepsToday, animateIn)
@@ -64,10 +70,10 @@ fun TodayTab(state: UiState.Ready, onRefresh: () -> Unit, animateIn: Boolean, on
     ) {
         item { Entrance(0, animateIn) { SummaryHeader(state, onRefresh) } }
         item { Entrance(1, animateIn) { SectionTitle("收藏") } }
-        item { Entrance(2, animateIn) { ActivityCard(o, steps, animateIn) } }
+        item { Entrance(2, animateIn) { ActivityCard(o, steps, animateIn, onOpenDetail) } }
         item {
             Entrance(3, animateIn) {
-                SummaryCard("步数", colors.primary, time = "今天") { ValueText(steps?.let { "%,d".format(it) }, "步") }
+                SummaryCard("步数", colors.primary, time = "今天", onClick = onOpenDetail) { ValueText(steps?.let { "%,d".format(it) }, "步") }
             }
         }
         item {
@@ -133,10 +139,10 @@ private fun SummaryHeader(state: UiState.Ready, onRefresh: () -> Unit) {
 }
 
 @Composable
-private fun ActivityCard(o: Overview, steps: Long?, animateIn: Boolean) {
+private fun ActivityCard(o: Overview, steps: Long?, animateIn: Boolean, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val sleep = o.lastNight?.asleepMin
-    SummaryCard("活动", colors.primary, time = "今天") {
+    SummaryCard("活动", colors.primary, time = "今天", onClick = onClick) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             ActivityRings(
                 outer = ringProgress(o.stepsToday, STEP_GOAL),

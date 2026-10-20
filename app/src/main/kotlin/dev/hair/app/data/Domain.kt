@@ -35,7 +35,7 @@ data class Overview(
 
 private fun String?.minutes(): Long = this?.toLongOrNull() ?: 0L
 
-private fun Date.toLocalDate() = LocalDate.of(year, month, day)
+internal fun Date.toLocalDate() = LocalDate.of(year, month, day)
 
 /** 无法确定醒来日期的数据点返回 null（此时无法归属到某一天，不猜测）。 */
 fun DataPoint.toNight(): Night? {
