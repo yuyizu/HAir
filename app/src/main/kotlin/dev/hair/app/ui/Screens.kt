@@ -53,8 +53,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.hair.app.data.CardioLevel
 import dev.hair.app.data.DetailRange
-import dev.hair.app.data.Goals
 import dev.hair.app.data.Metric
+import dev.hair.app.data.UserSettings
 
 private val TABS = listOf("摘要", "睡眠", "我的")
 private val INDICATOR_WIDTH = 28.dp
@@ -62,8 +62,8 @@ private val INDICATOR_WIDTH = 28.dp
 @Composable
 fun HairScreen(
     state: UiState,
-    goals: Goals,
-    onGoalsChange: (Goals) -> Unit,
+    settings: UserSettings,
+    onSettingsChange: (UserSettings) -> Unit,
     onSignIn: () -> Unit,
     onRefresh: () -> Unit,
     onSignOut: () -> Unit,
@@ -81,7 +81,7 @@ fun HairScreen(
                     OutlinedButton(onClick = onSignOut) { Text("退出登录") }
                 }
             }
-            is UiState.Ready -> ReadyScreen(state, goals, onGoalsChange, onRefresh, onSignOut, loadSeries)
+            is UiState.Ready -> ReadyScreen(state, settings, onSettingsChange, onRefresh, onSignOut, loadSeries)
         }
     }
 }
@@ -112,8 +112,8 @@ private fun SignedOutScreen(onSignIn: () -> Unit) = Centered {
 @Composable
 private fun ReadyScreen(
     state: UiState.Ready,
-    goals: Goals,
-    onGoalsChange: (Goals) -> Unit,
+    settings: UserSettings,
+    onSettingsChange: (UserSettings) -> Unit,
     onRefresh: () -> Unit,
     onSignOut: () -> Unit,
     loadSeries: suspend (Metric, DetailRange) -> SeriesResult,
@@ -144,14 +144,14 @@ private fun ReadyScreen(
                     when (current) {
                         0 -> TodayTab(
                             state,
-                            goals,
+                            settings,
                             onRefresh,
                             animateIn = !introPlayed,
                             onIntroDone = { introPlayed = true },
                             onOpenDetail = { detailOpen = true },
                         )
                         1 -> SleepTab(state.snapshot.nights)
-                        else -> ProfileTab(state, goals, onGoalsChange, onRefresh, onSignOut)
+                        else -> ProfileTab(state, settings, onSettingsChange, onRefresh, onSignOut)
                     }
                 }
             }

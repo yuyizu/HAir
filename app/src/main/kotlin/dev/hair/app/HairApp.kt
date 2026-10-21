@@ -2,9 +2,9 @@ package dev.hair.app
 
 import android.app.Application
 import dev.hair.app.auth.AuthManager
-import dev.hair.app.data.GoalStore
 import dev.hair.app.data.HealthApi
 import dev.hair.app.data.HealthRepository
+import dev.hair.app.data.SettingsStore
 import dev.hair.app.data.SnapshotStore
 import dev.hair.app.sync.SyncScheduler
 import java.io.File
@@ -14,7 +14,7 @@ class HairApp : Application() {
     val repository by lazy {
         HealthRepository(HealthApi(auth::accessToken), SnapshotStore(File(filesDir, "snapshot.json")))
     }
-    val goalStore by lazy { GoalStore(File(filesDir, "goals.json")) }
+    val settingsStore by lazy { SettingsStore(File(filesDir, "settings.json")) }
 
     override fun onCreate() {
         super.onCreate()

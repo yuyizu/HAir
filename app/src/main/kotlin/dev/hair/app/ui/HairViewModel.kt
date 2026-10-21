@@ -6,11 +6,11 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.hair.app.HairApp
 import dev.hair.app.data.DetailRange
-import dev.hair.app.data.Goals
 import dev.hair.app.data.HealthApiException
 import dev.hair.app.data.Metric
 import dev.hair.app.data.Series
 import dev.hair.app.data.Snapshot
+import dev.hair.app.data.UserSettings
 import dev.hair.app.sync.SyncScheduler
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -48,9 +48,9 @@ class HairViewModel(app: Application) : AndroidViewModel(app) {
     private val _state = MutableStateFlow<UiState>(if (auth.isSignedIn) UiState.Loading else UiState.SignedOut)
     val state: StateFlow<UiState> = _state.asStateFlow()
 
-    private val goalStore = hair.goalStore
-    private val _goals = MutableStateFlow(goalStore.load())
-    val goals: StateFlow<Goals> = _goals.asStateFlow()
+    private val settingsStore = hair.settingsStore
+    private val _settings = MutableStateFlow(settingsStore.load())
+    val settings: StateFlow<UserSettings> = _settings.asStateFlow()
 
     init {
         if (auth.isSignedIn) refresh()
@@ -83,10 +83,10 @@ class HairViewModel(app: Application) : AndroidViewModel(app) {
 
     fun refresh() = load {}
 
-    /** 目标文件很小，直接在主线程同步落盘，保证连点时写入顺序与界面一致。 */
-    fun setGoals(goals: Goals) {
-        goalStore.save(goals)
-        _goals.value = goals
+    /** 设置文件很小，直接在主线程同步落盘，保证连点时写入顺序与界面一致。 */
+    fun setSettings(settings: UserSettings) {
+        settingsStore.save(settings)
+        _settings.value = settings
     }
 
     /** 详情页的时间序列不入缓存，每次现取；由调用方的协程负责取消。 */

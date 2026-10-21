@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import dev.hair.app.data.FitnessAge
 
 private val SEGMENT_HEIGHT = 32.dp
 
@@ -124,7 +125,7 @@ fun SectionTitle(text: String) {
     Text(text, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 4.dp))
 }
 
-/** iOS 风格分段控件：选中的白色滑块会滑到新选项下，首次显示直接就位。 */
+/** iOS 风格分段控件：选中的白色滑块会滑到新选项下，首次显示直接就位。[selected] 为 -1 表示还没选，不画滑块。 */
 @Composable
 fun Segmented(options: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
     val colors = MaterialTheme.colorScheme
@@ -136,17 +137,19 @@ fun Segmented(options: List<String>, selected: Int, onSelect: (Int) -> Unit, mod
     ) {
         val itemWidth = maxWidth / options.size
         val thumbX by animateDpAsState(
-            targetValue = itemWidth * selected,
+            targetValue = itemWidth * selected.coerceAtLeast(0),
             animationSpec = spring(dampingRatio = 0.8f, stiffness = 380f),
             label = "segmentThumb",
         )
-        Box(
-            Modifier
-                .offset(x = thumbX)
-                .width(itemWidth)
-                .height(SEGMENT_HEIGHT)
-                .background(colors.surface, RoundedCornerShape(8.dp)),
-        )
+        if (selected >= 0) {
+            Box(
+                Modifier
+                    .offset(x = thumbX)
+                    .width(itemWidth)
+                    .height(SEGMENT_HEIGHT)
+                    .background(colors.surface, RoundedCornerShape(8.dp)),
+            )
+        }
         Row {
             options.forEachIndexed { i, label ->
                 val isSelected = i == selected
@@ -181,3 +184,20 @@ fun formatMinutes(minutes: Long): String = "${minutes / 60} 小时 ${minutes % 6
 
 /** 目标整小时时省掉“0 分”，否则同 [formatMinutes]。 */
 fun formatSleepGoal(minutes: Long): String = if (minutes % 60 == 0L) "${minutes / 60} 小时" else formatMinutes(minutes)
+
+fun formatFitnessAge(age: FitnessAge): String = when (age) {
+    is FitnessAge.Exact -> "${age.years} 岁"
+    is FitnessAge.AtMost -> "≤ ${age.years} 岁"
+    is FitnessAge.AtLeast -> "≥ ${age.years} 岁"
+}
+
+/** 只有精确的健康年龄才能和实际年龄比较；上下限没有可比的差值，返回 null。 */
+fun compareToActualAge(age: FitnessAge, actualAge: Int): String? {
+    if (age !is FitnessAge.Exact) return null
+    val younger = actualAge - age.years
+    return when {
+        younger > 0 -> "比实际年龄小 $younger 岁"
+        younger < 0 -> "比实际年龄大 ${-younger} 岁"
+        else -> "与实际年龄相当"
+    }
+}

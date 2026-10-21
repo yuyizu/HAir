@@ -1,9 +1,6 @@
 package dev.hair.app.data
 
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.encodeToString
-import java.io.File
 
 private val STEPS_RANGE = 1_000L..50_000L
 private val SLEEP_RANGE_MIN = 240L..720L
@@ -25,23 +22,4 @@ data class Goals(
     fun adjustSteps(direction: Int): Goals = copy(steps = (steps + direction * STEPS_INCREMENT).coerceIn(STEPS_RANGE))
 
     fun adjustSleep(direction: Int): Goals = copy(sleepMin = (sleepMin + direction * SLEEP_INCREMENT_MIN).coerceIn(SLEEP_RANGE_MIN))
-}
-
-/**
- * 把 [Goals] 存成单个 JSON 文件。目标是用户设置而不是健康数据，不随退出登录清除。
- */
-class GoalStore(private val file: File) {
-
-    /** 文件不存在、损坏或目标超出范围时回到默认目标；下一次 [save] 会覆盖坏文件。 */
-    fun load(): Goals {
-        if (!file.exists()) return Goals()
-        return try {
-            HealthJson.decodeFromString<Goals>(file.readText())
-        } catch (e: IllegalArgumentException) {
-            // SerializationException 是它的子类；init 里的 require 失败也会走到这里
-            Goals()
-        }
-    }
-
-    fun save(goals: Goals) = file.writeTextAtomically(HealthJson.encodeToString(goals))
 }

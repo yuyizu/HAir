@@ -25,6 +25,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import dev.hair.app.data.Goals
 import dev.hair.app.data.Overview
+import dev.hair.app.data.UserSettings
+import dev.hair.app.data.fitnessAge
 import dev.hair.app.ui.theme.linkColor
 import kotlinx.coroutines.delay
 import java.time.Instant
@@ -44,7 +46,7 @@ private val UPDATED_FORMAT = DateTimeFormatter.ofPattern("M月d日 HH:mm", Local
 @Composable
 fun TodayTab(
     state: UiState.Ready,
-    goals: Goals,
+    settings: UserSettings,
     onRefresh: () -> Unit,
     animateIn: Boolean,
     onIntroDone: () -> Unit,
@@ -68,7 +70,7 @@ fun TodayTab(
     ) {
         item { Entrance(0, animateIn) { SummaryHeader(state, onRefresh) } }
         item { Entrance(1, animateIn) { SectionTitle("收藏") } }
-        item { Entrance(2, animateIn) { ActivityCard(o, goals, steps, animateIn, onOpenDetail) } }
+        item { Entrance(2, animateIn) { ActivityCard(o, settings.goals, steps, animateIn, onOpenDetail) } }
         item {
             Entrance(3, animateIn) {
                 SummaryCard("步数", colors.primary, time = "今天", onClick = onOpenDetail) { ValueText(steps?.let { "%,d".format(it) }, "步") }
@@ -109,6 +111,27 @@ fun TodayTab(
                             color = colors.onSurfaceVariant,
                         )
                     }
+                }
+            }
+        }
+        item { Entrance(9, animateIn) { FitnessAgeCard(o, settings) } }
+    }
+}
+
+@Composable
+private fun FitnessAgeCard(o: Overview, settings: UserSettings) {
+    val colors = MaterialTheme.colorScheme
+    val cardio = o.cardioFitness
+    val sex = settings.sex
+    SummaryCard("健康年龄", colors.tertiary, time = cardio?.date?.let(SHORT_DATE::format)) {
+        when {
+            cardio == null -> ValueText(null)
+            sex == null -> Text("在「我的」里设置性别后显示", style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant)
+            else -> {
+                val age = fitnessAge(cardio.vo2Max, sex)
+                ValueText(formatFitnessAge(age))
+                settings.ageIn(LocalDate.now().year)?.let { compareToActualAge(age, it) }?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
                 }
             }
         }

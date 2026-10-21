@@ -20,15 +20,15 @@ class MainActivity : ComponentActivity() {
         setContent {
             HairTheme {
                 val state by viewModel.state.collectAsStateWithLifecycle()
-                val goals by viewModel.goals.collectAsStateWithLifecycle()
+                val settings by viewModel.settings.collectAsStateWithLifecycle()
                 val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
                     val data = it.data
                     if (data != null) viewModel.onAuthResult(data) else viewModel.onAuthCancelled()
                 }
                 HairScreen(
                     state = state,
-                    goals = goals,
-                    onGoalsChange = viewModel::setGoals,
+                    settings = settings,
+                    onSettingsChange = viewModel::setSettings,
                     onSignIn = { viewModel.signInIntent()?.let(launcher::launch) },
                     onRefresh = viewModel::refresh,
                     onSignOut = viewModel::signOut,
