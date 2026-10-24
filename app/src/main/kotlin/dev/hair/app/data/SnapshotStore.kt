@@ -12,6 +12,8 @@ data class Snapshot(
     val overview: Overview,
     val nights: List<Night>,
     val fetchedAtMillis: Long,
+    /** 近 30 天的每日汇总，升序；旧缓存没有这一项时为空，下次刷新后补齐。 */
+    val vitals: List<DailyVitals> = emptyList(),
 )
 
 /**

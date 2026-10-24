@@ -7,7 +7,7 @@ private val SLEEP_RANGE_MIN = 240L..720L
 private const val STEPS_INCREMENT = 500L
 private const val SLEEP_INCREMENT_MIN = 15L
 
-/** 用户设定的每日目标，摘要页的圆环以它为满圈。范围见 [STEPS_RANGE]、[SLEEP_RANGE_MIN]，构造时校验。 */
+/** 用户设定的每日目标，今日页的步数进度条和睡眠水位以它为满值。范围见 [STEPS_RANGE]、[SLEEP_RANGE_MIN]，构造时校验。 */
 @Serializable
 data class Goals(
     val steps: Long = 8_000,

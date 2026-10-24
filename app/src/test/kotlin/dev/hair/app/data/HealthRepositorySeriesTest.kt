@@ -26,22 +26,26 @@ class HealthRepositorySeriesTest {
     private val today = LocalDate.of(2026, 10, 20)
     private val shanghai = ZoneId.of("Asia/Shanghai")
 
-    private class Sent(val path: String, val body: String)
+    private class Sent(val path: String, val body: String, val filter: String?)
 
     private val sent = mutableListOf<Sent>()
 
-    private fun repository(responseBody: String, status: Int = 200): HealthRepository {
+    /** 每个请求的响应由 [respond] 按路径决定。 */
+    private fun repository(status: Int = 200, respond: (path: String) -> String): HealthRepository {
         val client = OkHttpClient.Builder().addInterceptor(Interceptor { chain ->
             val request = chain.request()
             val buffer = Buffer().also { request.body?.writeTo(it) }
-            sent += Sent(request.url.encodedPath, buffer.readUtf8())
+            val path = request.url.encodedPath
+            sent += Sent(path, buffer.readUtf8(), request.url.queryParameter("filter"))
             Response.Builder()
                 .request(request).protocol(Protocol.HTTP_1_1).code(status).message("test")
-                .body(responseBody.toResponseBody("application/json".toMediaType()))
+                .body(respond(path).toResponseBody("application/json".toMediaType()))
                 .build()
         }).build()
         return HealthRepository(HealthApi({ "token" }, client), SnapshotStore(File(tmp.root, "snapshot.json")))
     }
+
+    private fun repository(responseBody: String, status: Int = 200) = repository(status) { responseBody }
 
     @Test
     fun `日档请求当天本地零点到次日零点的小时汇总`() = runBlocking {
@@ -85,6 +89,55 @@ class HealthRepositorySeriesTest {
 
         assertEquals("/v4/users/me/dataTypes/active-energy-burned/dataPoints:rollUp", sent.single().path)
         assertEquals(12.5, s.values[0], 0.0)
+    }
+
+    private fun night(vararg stages: StageSegment) = Night(LocalDate.of(2026, 10, 24), 400, 423, 73, 99, 228, 23, stages.toList())
+
+    private fun sec(iso: String) = java.time.Instant.parse(iso).epochSecond
+
+    @Test
+    fun `夜间细节：心率按 5 分钟汇总，血氧取分期窗口内的采样并升序`() = runBlocking {
+        val repo = repository { path ->
+            if (path.endsWith(":rollUp")) {
+                """{"rollupDataPoints":[
+                    {"startTime":"2026-10-23T13:25:00Z","heartRate":{"beatsPerMinuteMin":50,"beatsPerMinuteAvg":54,"beatsPerMinuteMax":60}},
+                    {"startTime":"2026-10-23T13:20:00Z","heartRate":{"beatsPerMinuteMin":52,"beatsPerMinuteAvg":58.5,"beatsPerMinuteMax":71}},
+                    {"startTime":"2026-10-23T13:30:00Z"}]}"""
+            } else {
+                """{"dataPoints":[
+                    {"oxygenSaturation":{"sampleTime":{"physicalTime":"2026-10-23T19:15:04Z"},"percentage":95.5}},
+                    {"oxygenSaturation":{"sampleTime":{"physicalTime":"2026-10-23T19:14:04Z"},"percentage":96}}]}"""
+            }
+        }
+        val stages = arrayOf(
+            StageSegment(SleepStage.AWAKE, sec("2026-10-23T13:21:00Z"), sec("2026-10-23T13:34:00Z")),
+            StageSegment(SleepStage.LIGHT, sec("2026-10-23T13:34:00Z"), sec("2026-10-23T20:24:00Z")),
+        )
+
+        val detail = repo.nightDetail(night(*stages))!!
+
+        // 没有心率的窗口被丢弃，其余按时间升序
+        assertEquals(listOf(58.5, 54.0), detail.heart.map { it.avgBpm })
+        assertEquals(listOf(96.0, 95.5), detail.spo2.map { it.percent })
+        val roll = sent.single { it.path.endsWith(":rollUp") }
+        assertEquals("/v4/users/me/dataTypes/heart-rate/dataPoints:rollUp", roll.path)
+        assertEquals(
+            RollUpRequest("300s", TimeInterval("2026-10-23T13:21:00Z", "2026-10-23T20:24:00Z")),
+            HealthJson.decodeFromString<RollUpRequest>(roll.body),
+        )
+        assertEquals(
+            "oxygen_saturation.sample_time.physical_time >= \"2026-10-23T13:21:00Z\" AND " +
+                "oxygen_saturation.sample_time.physical_time < \"2026-10-23T20:24:00Z\"",
+            sent.single { it.path.endsWith("/oxygen-saturation/dataPoints") }.filter,
+        )
+    }
+
+    @Test
+    fun `没有分期的睡眠没有夜间细节，也不发请求`() = runBlocking {
+        val repo = repository("{}")
+
+        assertEquals(null, repo.nightDetail(night()))
+        assertEquals(0, sent.size)
     }
 
     @Test

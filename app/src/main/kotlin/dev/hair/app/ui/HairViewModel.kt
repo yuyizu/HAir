@@ -6,11 +6,18 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.hair.app.HairApp
 import dev.hair.app.data.DetailRange
+import dev.hair.app.data.HabitLog
 import dev.hair.app.data.HealthApiException
+import dev.hair.app.data.HeartBucket
 import dev.hair.app.data.Metric
+import dev.hair.app.data.Moment
+import dev.hair.app.data.MomentLog
+import dev.hair.app.data.Night
+import dev.hair.app.data.NightDetail
 import dev.hair.app.data.Series
 import dev.hair.app.data.Snapshot
 import dev.hair.app.data.UserSettings
+import dev.hair.app.data.momentWindow
 import dev.hair.app.sync.SyncScheduler
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,6 +26,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import net.openid.appauth.AuthorizationException
 import java.io.IOException
+import java.time.Instant
 
 sealed interface UiState {
     data object Loading : UiState
@@ -34,10 +42,10 @@ sealed interface UiState {
     data class Error(val message: String) : UiState
 }
 
-/** 详情页一次取数的结果；失败的 [message] 可直接展示给用户。 */
-sealed interface SeriesResult {
-    data class Loaded(val series: Series) : SeriesResult
-    data class Failed(val message: String) : SeriesResult
+/** 详情页一次现取数据的结果；失败的 [message] 可直接展示给用户。 */
+sealed interface LoadResult<out T> {
+    data class Loaded<T>(val value: T) : LoadResult<T>
+    data class Failed(val message: String) : LoadResult<Nothing>
 }
 
 class HairViewModel(app: Application) : AndroidViewModel(app) {
@@ -51,6 +59,14 @@ class HairViewModel(app: Application) : AndroidViewModel(app) {
     private val settingsStore = hair.settingsStore
     private val _settings = MutableStateFlow(settingsStore.load())
     val settings: StateFlow<UserSettings> = _settings.asStateFlow()
+
+    private val habitStore = hair.habitStore
+    private val _habits = MutableStateFlow(habitStore.load())
+    val habits: StateFlow<HabitLog> = _habits.asStateFlow()
+
+    private val momentStore = hair.momentStore
+    private val _moments = MutableStateFlow(momentStore.load())
+    val moments: StateFlow<MomentLog> = _moments.asStateFlow()
 
     init {
         if (auth.isSignedIn) refresh()
@@ -83,19 +99,41 @@ class HairViewModel(app: Application) : AndroidViewModel(app) {
 
     fun refresh() = load {}
 
-    /** 设置文件很小，直接在主线程同步落盘，保证连点时写入顺序与界面一致。 */
+    /** 设置、习惯、片段记录都很小，直接在主线程同步落盘，保证连点时写入顺序与界面一致。 */
     fun setSettings(settings: UserSettings) {
         settingsStore.save(settings)
         _settings.value = settings
     }
 
+    fun setHabits(log: HabitLog) {
+        habitStore.save(log)
+        _habits.value = log
+    }
+
+    fun setMoments(log: MomentLog) {
+        momentStore.save(log)
+        _moments.value = log
+    }
+
     /** 详情页的时间序列不入缓存，每次现取；由调用方的协程负责取消。 */
-    suspend fun loadSeries(metric: Metric, range: DetailRange): SeriesResult = try {
-        SeriesResult.Loaded(repository.series(metric, range))
+    suspend fun loadSeries(metric: Metric, range: DetailRange): LoadResult<Series> =
+        fetch { repository.series(metric, range) }
+
+    /** 一晚的心率和血氧细节；睡眠没有分期、无法确定起止时结果为 null。 */
+    suspend fun loadNightDetail(night: Night): LoadResult<NightDetail?> = fetch { repository.nightDetail(night) }
+
+    /** 一段已结束的记录期间的心率。 */
+    suspend fun loadHeart(moment: Moment): LoadResult<List<HeartBucket>> = fetch {
+        val end = checkNotNull(moment.endMillis) { "片段还没结束" }
+        repository.heartSeries(Instant.ofEpochMilli(moment.startMillis), Instant.ofEpochMilli(end), momentWindow(end - moment.startMillis))
+    }
+
+    private suspend fun <T> fetch(block: suspend () -> T): LoadResult<T> = try {
+        LoadResult.Loaded(block())
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
-        SeriesResult.Failed(describe(e) ?: throw e)
+        LoadResult.Failed(describe(e) ?: throw e)
     }
 
     /** 有缓存时先展示缓存并在其上刷新；刷新失败保留缓存并带上错误，没有缓存才进入整页错误。 */

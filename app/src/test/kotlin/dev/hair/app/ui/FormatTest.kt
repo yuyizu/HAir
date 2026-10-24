@@ -35,4 +35,21 @@ class FormatTest {
         assertNull(compareToActualAge(FitnessAge.AtMost(25), 38))
         assertNull(compareToActualAge(FitnessAge.AtLeast(75), 38))
     }
+
+
+    @Test
+    fun `时分写法补零`() {
+        assertEquals("6:40", formatHm(400))
+        assertEquals("1:05", formatHm(65))
+        assertEquals("0:00", formatHm(0))
+    }
+
+
+    @Test
+    fun `醒来日期是今天叫昨夜睡眠，更早的写日期`() {
+        val today = java.time.LocalDate.of(2026, 10, 24)
+
+        assertEquals("昨夜睡眠", sleepCaption(today, today))
+        assertEquals("10月23日的睡眠", sleepCaption(today.minusDays(1), today))
+    }
 }

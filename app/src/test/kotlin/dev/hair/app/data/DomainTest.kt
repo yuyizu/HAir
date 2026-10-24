@@ -8,12 +8,15 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
 
-/** 样例 JSON 按 Discovery 文档的字段定义手写（int64 为字符串、枚举为大写字符串）。 */
+/**
+ * 样例 JSON 按 Discovery 文档的字段定义手写（int64 为字符串、枚举为大写字符串）。
+ * 睡眠的 interval 取自 2026-10-24 的真机响应：只有起止时刻及其 UTC 偏移，没有 civilEndTime。
+ */
 class DomainTest {
     private val sleepJson = """
         {"dataPoints":[{"sleep":{
-          "interval":{"startTime":"2026-10-19T14:30:00Z","endTime":"2026-10-19T22:10:00Z",
-                      "civilEndTime":{"date":{"year":2026,"month":10,"day":20},"time":{"hours":6,"minutes":10}}},
+          "interval":{"startTime":"2026-10-19T14:30:00Z","startUtcOffset":"28800s",
+                      "endTime":"2026-10-19T22:10:00Z","endUtcOffset":"28800s"},
           "type":"STAGES",
           "metadata":{"mainSleep":true,"nap":false},
           "summary":{"minutesAsleep":"420","minutesAwake":"40","minutesInSleepPeriod":"460",
@@ -36,9 +39,53 @@ class DomainTest {
     }
 
     @Test
-    fun `缺少醒来日期的睡眠记录不映射`() {
-        val point = DataPoint(sleep = Sleep(summary = SleepSummary(minutesAsleep = "300")))
-        assertNull(point.toNight())
+    fun `分期按时间升序映射为时间段，不认识的类型被丢弃`() {
+        val json = """{"dataPoints":[{"sleep":{
+          "interval":{"startTime":"2026-10-23T13:21:00Z","startUtcOffset":"28800s",
+                      "endTime":"2026-10-23T20:24:00Z","endUtcOffset":"28800s"},
+          "type":"STAGES",
+          "stages":[
+            {"startTime":"2026-10-23T13:34:00Z","startUtcOffset":"28800s","endTime":"2026-10-23T13:47:00Z","endUtcOffset":"28800s","type":"LIGHT"},
+            {"startTime":"2026-10-23T13:21:00Z","startUtcOffset":"28800s","endTime":"2026-10-23T13:34:00Z","endUtcOffset":"28800s","type":"AWAKE"},
+            {"startTime":"2026-10-23T13:47:00Z","endTime":"2026-10-23T14:15:00Z","type":"ASLEEP"}],
+          "metadata":{"mainSleep":true},
+          "summary":{"minutesAsleep":"400","minutesAwake":"23","minutesInSleepPeriod":"423","stagesSummary":[]}}}]}"""
+
+        val night = HealthJson.decodeFromString<ListResponse>(json).dataPoints.single().toNight()!!
+
+        val t = { s: String -> java.time.Instant.parse(s).epochSecond }
+        assertEquals(
+            listOf(
+                StageSegment(SleepStage.AWAKE, t("2026-10-23T13:21:00Z"), t("2026-10-23T13:34:00Z")),
+                StageSegment(SleepStage.LIGHT, t("2026-10-23T13:34:00Z"), t("2026-10-23T13:47:00Z")),
+            ),
+            night.stages,
+        )
+        assertEquals(t("2026-10-23T13:21:00Z") to t("2026-10-23T13:47:00Z"), night.windowSec)
+    }
+
+    @Test
+    fun `没有分期的睡眠没有起止窗口`() {
+        val point = HealthJson.decodeFromString<ListResponse>(sleepJson).dataPoints.single()
+        assertNull(point.toNight()!!.windowSec)
+    }
+
+    @Test
+    fun `醒来日期按记录自带的 UTC 偏移换算，不取 UTC 日期`() {
+        val interval = SessionInterval(endTime = "2026-10-20T03:00:00Z", endUtcOffset = "-18000s")
+        val point = DataPoint(sleep = Sleep(interval = interval, summary = SleepSummary(minutesAsleep = "300")))
+        assertEquals(LocalDate.of(2026, 10, 19), point.toNight()!!.date)
+    }
+
+    @Test
+    fun `缺少醒来时刻或 UTC 偏移的睡眠记录不映射`() {
+        val summary = SleepSummary(minutesAsleep = "300")
+        val noInterval = Sleep(summary = summary)
+        val noOffset = Sleep(interval = SessionInterval(endTime = "2026-10-20T03:00:00Z"), summary = summary)
+        val noEnd = Sleep(interval = SessionInterval(endUtcOffset = "28800s"), summary = summary)
+        assertNull(DataPoint(sleep = noInterval).toNight())
+        assertNull(DataPoint(sleep = noOffset).toNight())
+        assertNull(DataPoint(sleep = noEnd).toNight())
     }
 
     @Test

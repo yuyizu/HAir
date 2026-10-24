@@ -13,16 +13,23 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.MotionDurationScale
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import kotlin.coroutines.coroutineContext
+import kotlin.math.min
 import kotlin.math.roundToLong
 
 /** 数字滚动和圆环填充共用的时长，两者同时起跑、同时到位。 */
 const val COUNT_MS = 700
 
+private const val SCENE_FRAME_NANOS = 16_000_000L
+private const val MAX_STEP_SECONDS = 0.1f
 private const val ENTRANCE_STEP_MS = 45L
 private const val ENTRANCE_MS = 260
 private const val ENTRANCE_MAX_INDEX = 8
@@ -76,4 +83,37 @@ fun Modifier.pressScale(source: MutableInteractionSource): Modifier {
         scaleX = scale
         scaleY = scale
     }
+}
+
+/**
+ * 水景环境动画的时钟，单位秒，约 60 帧/秒（在这台 90Hz 的机器上实测 0 掉帧，放开到不限速则每帧要 23ms、跟不上）；每走一帧先用这一帧的秒数调用 [onFrame] 推进模拟（单帧最多算 0.1 秒，退到后台再回来不会一步跳很远）。
+ * 随组合存在而走：水景滚出屏幕、切走标签、应用退到后台都会停。
+ * 系统关闭动画（动画时长缩放为 0）时停在 0，水景保持静态。读取放在绘制阶段，不触发重组。
+ */
+@Composable
+fun rememberSceneClock(onFrame: (dt: Float) -> Unit): () -> Float {
+    val time = remember { mutableFloatStateOf(0f) }
+    val step by rememberUpdatedState(onFrame)
+    LaunchedEffect(Unit) {
+        var start = -1L
+        var last = 0L
+        while (true) {
+            if (coroutineContext[MotionDurationScale]?.scaleFactor == 0f) {
+                delay(1_000)
+                continue
+            }
+            withFrameNanos { now ->
+                if (start < 0) {
+                    start = now
+                    last = now
+                }
+                if (now - last >= SCENE_FRAME_NANOS) {
+                    step(min((now - last) / 1e9f, MAX_STEP_SECONDS))
+                    last = now
+                    time.floatValue = (now - start) / 1e9f
+                }
+            }
+        }
+    }
+    return { time.floatValue }
 }

@@ -13,6 +13,7 @@ data class UserSettings(
     val goals: Goals = Goals(),
     val sex: Sex? = null,
     val birthYear: Int? = null,
+    val scene: SceneSettings = SceneSettings(),
 ) {
     init {
         require(birthYear == null || birthYear in BIRTH_YEARS) { "出生年份 $birthYear 超出 $BIRTH_YEARS" }

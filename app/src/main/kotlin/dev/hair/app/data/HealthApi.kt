@@ -11,6 +11,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 
@@ -28,15 +29,26 @@ class HealthApi(
         execute(Request.Builder().url("$BASE/users/me/identity"))
     }
 
-    /** dataType 为 kebab-case（如 "sleep"），filter 语法见 ListDataPointsRequest.filter。 */
-    suspend fun list(dataType: String, filter: String, pageSize: Int): List<DataPoint> {
-        val url = "$BASE/users/me/dataTypes/$dataType/dataPoints".toHttpUrl().newBuilder()
-            .addQueryParameter("filter", filter)
-            .addQueryParameter("pageSize", pageSize.toString())
-            .build()
-        val body = execute(Request.Builder().url(url))
-        if (BuildConfig.DEBUG) Log.d(TAG, "$dataType [$filter] -> $body")
-        return HealthJson.decodeFromString<ListResponse>(body).dataPoints
+    /**
+     * dataType 为 kebab-case（如 "sleep"），filter 语法见 ListDataPointsRequest.filter。
+     * 最多返回 [limit] 条；服务端单页有上限（如 sleep 为 25），不够时按 nextPageToken 继续取。
+     */
+    suspend fun list(dataType: String, filter: String, limit: Int): List<DataPoint> {
+        val points = ArrayList<DataPoint>()
+        var pageToken: String? = null
+        do {
+            val url = "$BASE/users/me/dataTypes/$dataType/dataPoints".toHttpUrl().newBuilder()
+                .addQueryParameter("filter", filter)
+                .addQueryParameter("pageSize", (limit - points.size).coerceAtMost(MAX_PAGE_SIZE).toString())
+                .apply { pageToken?.let { addQueryParameter("pageToken", it) } }
+                .build()
+            val body = execute(Request.Builder().url(url))
+            if (BuildConfig.DEBUG) Log.d(TAG, "$dataType [$filter] -> $body")
+            val page = HealthJson.decodeFromString<ListResponse>(body)
+            points += page.dataPoints
+            pageToken = page.nextPageToken?.takeIf { it.isNotEmpty() }
+        } while (pageToken != null && points.size < limit)
+        return points.take(limit)
     }
 
     /** 按天汇总 [metric]，[from] 含，[toExclusive] 不含。 */
@@ -48,11 +60,11 @@ class HealthApi(
         return HealthJson.decodeFromString<DailyRollUpResponse>(execute(request)).rollupDataPoints
     }
 
-    /** 按小时汇总 [metric]，[start] 含，[end] 不含。 */
-    suspend fun hourlyRollUp(metric: Metric, start: Instant, end: Instant): List<RollupDataPoint> {
-        val payload = RollUpRequest("3600s", TimeInterval(start.toString(), end.toString()))
+    /** 按 [window] 汇总 [dataType]，[start] 含，[end] 不含。只取第一页（默认 1440 个窗口），调用方自己控制窗口数。 */
+    suspend fun rollUp(dataType: String, window: Duration, start: Instant, end: Instant): List<RollupDataPoint> {
+        val payload = RollUpRequest("${window.seconds}s", TimeInterval(start.toString(), end.toString()))
         val request = Request.Builder()
-            .url("$BASE/users/me/dataTypes/${metric.dataType}/dataPoints:rollUp")
+            .url("$BASE/users/me/dataTypes/$dataType/dataPoints:rollUp")
             .post(HealthJson.encodeToString(payload).toRequestBody(JSON))
         return HealthJson.decodeFromString<RollUpResponse>(execute(request)).rollupDataPoints
     }
@@ -73,6 +85,7 @@ class HealthApi(
     private companion object {
         const val TAG = "HealthApi"
         const val BASE = "https://health.googleapis.com/v4"
+        const val MAX_PAGE_SIZE = 10_000
         val JSON = "application/json".toMediaType()
     }
 }
