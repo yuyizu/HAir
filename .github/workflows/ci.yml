@@ -27,8 +27,8 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Unit tests
-        run: ./gradlew test --no-daemon
+      - name: Unit tests and screenshot verification
+        run: ./gradlew test verifyRoborazziDebug --no-daemon
 
       - name: Upload test report on failure
         if: failure()
@@ -36,3 +36,13 @@ jobs:
         with:
           name: test-report
           path: app/build/reports/tests
+
+      - name: Upload screenshot diffs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshot-report
+          path: |
+            app/build/outputs/roborazzi
+            app/build/reports/roborazzi
+            app/build/test-results/roborazzi
