@@ -5,6 +5,12 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
+    id("io.github.takahirom.roborazzi")
+}
+
+// 截屏测试的基线图随提交入库；CI 只校验，不改基线
+roborazzi {
+    outputDir.set(file("src/test/screenshots"))
 }
 
 // OAuth 客户端 ID 不进仓库：写在根目录 local.properties 的 googleClientId=...
@@ -40,6 +46,8 @@ android {
 
     // 单元测试里 android.util.Log 等框架方法返回默认值，不抛 "not mocked"
     testOptions.unitTests.isReturnDefaultValues = true
+    // Robolectric 渲染 Composable 需要读取资源（字体、主题）
+    testOptions.unitTests.isIncludeAndroidResources = true
 }
 
 dependencies {
@@ -58,4 +66,10 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.9.1")
 
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.18.1")
+    testImplementation("io.github.takahirom.roborazzi:roborazzi:1.43.1")
+    testImplementation("io.github.takahirom.roborazzi:roborazzi-compose:1.43.1")
+    testImplementation("io.github.takahirom.roborazzi:roborazzi-junit-rule:1.43.1")
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

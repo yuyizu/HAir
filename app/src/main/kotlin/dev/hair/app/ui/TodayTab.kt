@@ -56,11 +56,12 @@ fun TodayTab(
     onOpenDetail: () -> Unit,
     onOpenForecast: () -> Unit,
     onOpenNight: (LocalDate) -> Unit,
+    /** 截屏测试传固定日期；正常运行时取系统日期。 */
+    today: LocalDate = LocalDate.now(),
 ) {
     val snapshot = state.snapshot
     val o = snapshot.overview
     val goals = settings.goals
-    val today = LocalDate.now()
     val steps = animatedCount(o.stepsToday, animateIn)
     val restingHr = animatedCount(o.restingHr, animateIn)
     val latestHr = animatedCount(o.latestHr, animateIn)

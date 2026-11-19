@@ -48,8 +48,15 @@ private val TIDE_HEIGHT = 104.dp
  * [animateIn] 为 true 表示这个标签页还没出场过：水位柱涨起、行依次入场。
  */
 @Composable
-fun SleepTab(nights: List<Night>, vitals: List<DailyVitals>, goalMin: Long, animateIn: Boolean, onOpenNight: (LocalDate) -> Unit) {
-    val today = LocalDate.now()
+fun SleepTab(
+    nights: List<Night>,
+    vitals: List<DailyVitals>,
+    goalMin: Long,
+    animateIn: Boolean,
+    /** 截屏测试传固定日期；正常运行时取系统日期。 */
+    today: LocalDate = LocalDate.now(),
+    onOpenNight: (LocalDate) -> Unit,
+) {
     val vitalsByDate = vitals.associateBy { it.date }
     val recent = nights.sortedBy { it.date }.takeLast(WEEK)
     val subtitle = recent.takeIf { it.isNotEmpty() }?.let { "近 ${it.size} 晚平均 ${formatMinutes(it.map { n -> n.asleepMin }.average().toLong())}" }
