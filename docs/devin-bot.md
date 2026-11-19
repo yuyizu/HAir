@@ -80,7 +80,7 @@ Roborazzi 已接入：三张 P0 基线（今日页浅色/深色、睡眠页浅�
 - 关掉声音（`SceneSettings.sound = false`），截屏不触发音效。
 - 测试放在 `app/src/testDebug` 源集，只在 debug 变体跑：debug 才有 `ui-test-manifest` 提供的宿主 Activity，release 单测不需要它。
 - 测试用空白 `Application`（`@Config(application = Application::class)`）：真实 Application 启动时会初始化 AndroidKeyStore 里的凭据，Robolectric 不支持。
-- 基线必须在与 CI 相同的环境录制（同一 Robolectric / JDK / 渲染模式）。**待核实**：macOS 本地录制与 Linux runner 是否逐像素一致；首次接入时先在 CI 上跑一次 `verify`，按结果决定是否改成「只在 CI 录」。
+- 基线必须在与 CI 相同的环境录制（同一 Robolectric / JDK / 渲染模式）。已核实：macOS 本地录制、GitHub Linux runner 首次 `verify` 即通过（CI run 44512785849），三张基线不需要「只在 CI 录」。换 JDK、Robolectric 或渲染模式仍要重录。
 
 ## 6. 基线规则
 
@@ -143,7 +143,7 @@ Roborazzi 已接入：三张 P0 基线（今日页浅色/深色、睡眠页浅�
 
 ## 待确认
 
-- 跨平台像素一致性（第 5 节）：基线在 macOS 录制，首次 CI 跑完后按 Linux 结果确认。
+- 跨平台像素一致性（第 5 节）：已确认，macOS 录制的三张基线在 Linux runner 上一次通过；未覆盖 Windows 与其他 JDK/Robolectric 组合。
 - 阈值 0.5%：已写进测试，但还没有真实 diff 样本，误报率未校准。
 - Devin 侧的执行环境（能否装 Android SDK、缓存 Gradle）：未确认，接入前需要跑通 `./gradlew test`。
 - 是否把 P1 屏放进 PR 级矩阵：取决于 P0 跑一次的实际耗时。
